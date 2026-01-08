@@ -1,0 +1,6 @@
+Compilation commands:
+
+1. gcc -c main.c -o main.o
+2. gcc -c math.c -o math.o
+3. gcc -o calc main.o math.o
+
