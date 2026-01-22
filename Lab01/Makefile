@@ -1,4 +1,4 @@
-mCC = gcc
+CC = gcc
 CFLAGS = -Wall -Wextra -g
 
 all: calc
