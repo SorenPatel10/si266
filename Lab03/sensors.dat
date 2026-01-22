@@ -1,0 +1,8 @@
+# Thermals Log v1.0
+# Date: 2023-10-25
+-- BEGIN DATA --
+ID: 0 | 65.5 66.0 67.2 | OK
+ID: 1 | 70.2 71.5 72.0 | WARN
+junk_data_ignore_this
+ID: 2 | 55.1 55.4 56.0 | OK
+-- END DATA --
