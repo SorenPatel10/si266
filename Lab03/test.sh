@@ -19,6 +19,6 @@ if [ "$VALGRIND_EXITCODE" -ne 0 ]; then
     exit 1
 fi
 
-echo "All Tests Passed"
+echo "All Tests PASSED"
 exit 0
 
