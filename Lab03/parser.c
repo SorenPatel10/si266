@@ -16,11 +16,13 @@ int main(){
         int id;
         float f1, f2, f3;
 
-        if (strncmp(line, "ID:", 3) != 0) {
+        if (strncmp(currLine, "ID:", 3) != 0) {
             continue;
         }
 
-        
+        sscanf(currLine, "ID: %d | %f %f %f", &id, &f1, &f2, &f3);
+        float avg = (f1+f2+f3) / 3.0;
+        printf("Sensor %d: Avg Temp = %.2f\n", id, avg);
     }
     
     return 0;
