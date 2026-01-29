@@ -22,7 +22,6 @@ typedef struct {
     float load_15;
 } load_data_t;
 
-/* Polling functions */
 int poll_cpu(cpu_data_t *cpu);
 int poll_mem(mem_data_t *mem);
 int poll_load(load_data_t *load, cpu_data_t *cpu);
