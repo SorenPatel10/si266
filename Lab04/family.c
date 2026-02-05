@@ -3,8 +3,8 @@
 #include <sys/wait.h>
 #include <stdlib.h>
 
-int main(void) {
-    pid_t child_pid, grandchild_pid;
+int main() {
+    int child_pid, grandchild_pid;
 
     child_pid = fork();
 
@@ -15,22 +15,20 @@ int main(void) {
 
         //grandchild runs this
         if (grandchild_pid == 0) {
-            printf("[Grandchild] PID: %d, PPID: %d\n",
-                   getpid(), getppid());
+            printf("[Grandchild] PID: %d, PPID: %d\n", getpid(), getppid());
             exit(0);
         }
 
         wait(NULL);
 
-        printf("[Child] PID: %d, PPID: %d\n",
-               getpid(), getppid());
+        printf("[Child] PID: %d, PPID: %d\n", getpid(), getppid());
         exit(0);
     }
 
     wait(NULL);
 
-    printf("[Parent] PID: %d, PPID: %d\n",
-           getpid(), getppid());
+    //back to the parent 
+    printf("[Parent] PID: %d, PPID: %d\n", getpid(), getppid());
 
     return 0;
 }
