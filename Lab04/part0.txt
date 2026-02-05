@@ -1,0 +1,26 @@
+MIDN 3/C Soren Patel
+284932
+SI266 Lab 04
+
+1.  4 total processes are created. Fork 1 takes the parent process and makes a child process, so 2 total.
+    Then each of those parent and child hits fork 2. So each splits, and 4 total processes now exist.
+
+    Tree:
+
+    Parent x=10
+    Fork 1
+    
+    Parent x=10                         Child x=10
+    x-5 -> x=5                          x+10 -> x=20
+    Fork 2                              Fork 2
+
+    Parent x=5,     Child x=5           Parent x=20,        Child x=20
+    print Root:5    x+1 -> x=6          print Root: 20      x+1 -> x=21
+                    print Leaf: 6                           print Leaf: 21
+
+2. 4 lines are printed. 2 Leaf, 2 Root
+
+3.  Root: 5
+    Leaf: 6
+    Root: 20
+    Leaf: 21
