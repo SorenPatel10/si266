@@ -118,18 +118,35 @@ int calc_load(load_data_stats *load, cpu_data_stats *cpu) {
     return 0;
 }
 
-int main(void) {
+void update_loop(){
     cpu_data_stats cpu;
     mem_data_stats mem;
     load_data_stats load;
 
-    if (calc_cpu(&cpu) || calc_mem(&mem) || calc_load(&load, &cpu)) {
-        fprintf(stderr, "Error reading system\n");
-        return 1;
+    while(1){
+        if (calc_cpu(&cpu) || calc_mem(&mem) || calc_load(&load, &cpu)) {
+            fprintf(stderr, "Error reading system\n");
+        }
+        else{
+            printf("CPU_USAGE:%.2f,""MEM_USED:%.2f,""MEM_AVAIL:%.2f,""MEM_FREE:%.2f,""MEM_CACHED:%.2f,""SWAP_USED:%.2f,""SWAP_FREE:%.2f,""LOAD_1:%.2f,""LOAD_5:%.2f,""LOAD_15:%.2f,""PROC_RUN:%d,""PROC_TOTAL:%d\n",
+                cpu.cpu_usage,mem.mem_used,mem.mem_avail,mem.mem_free,mem.mem_cached,mem.swap_used,mem.swap_free,load.load_1,load.load_5,load.load_15,cpu.proc_running,cpu.proc_total);
+        }
+        fflush(stdout);
     }
+}
 
-    printf("CPU_USAGE:%.2f,""MEM_USED:%.2f,""MEM_AVAIL:%.2f,""MEM_FREE:%.2f,""MEM_CACHED:%.2f,""SWAP_USED:%.2f,""SWAP_FREE:%.2f,""LOAD_1:%.2f,""LOAD_5:%.2f,""LOAD_15:%.2f,""PROC_RUN:%d,""PROC_TOTAL:%d\n",
-        cpu.cpu_usage,mem.mem_used,mem.mem_avail,mem.mem_free,mem.mem_cached,mem.swap_used,mem.swap_free,load.load_1,load.load_5,load.load_15,cpu.proc_running,cpu.proc_total);
+int main(void) {
+    
+    pid_t child_pid = fork();
+
+    if(child_pid == 0){
+        execl("./visualizer", "visualizer",NULL);
+        perror("exec has failed");
+        exit(1);
+    }
+    else{
+        update_loop();
+    }
 
     return 0;
 }
