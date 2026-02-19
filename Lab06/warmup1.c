@@ -10,7 +10,7 @@ int main(int argc, char* argv[]){
         return 1;
     }
 
-    srand(atoi(argv[i]));
+    srand(atoi(argv[1]));
 
     int fd[2];
     pipe(fd);
@@ -37,7 +37,7 @@ int main(int argc, char* argv[]){
         }
         close(fd[0]);
 
-        printf("SUm: %d\n", sum);
+        printf("Sum: %d\n", sum);
     }
 
     return 0;
