@@ -137,14 +137,28 @@ void update_loop(){
 
 int main(void) {
     
+    int fd[2];
+    if(pipe(fd) == -1){
+        perror("pipe has failed");
+        exit(1);
+    }
+
     pid_t child_pid = fork();
 
     if(child_pid == 0){
+        close(fd[1]);
+        dup2(fd[0], STDIN_FILENO);
+        close(fd[0]);
+        
         execl("./visualizer", "visualizer",NULL);
         perror("exec has failed");
         exit(1);
     }
     else{
+        close(fd[0]);
+        dup2(fd[1], STDOUT_FILENO);
+        close(fd[1]);
+        
         update_loop();
     }
 
