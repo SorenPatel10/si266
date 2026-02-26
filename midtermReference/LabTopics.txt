@@ -1,0 +1,76 @@
+Lab1: Bash and Make
+    Makefile:
+        makefile syntax
+        compiling to .o object files
+    test.sh:
+        basic bash test script syntax
+
+Lab2: Structs, Memory, Overflow
+    hack.c
+        struct creation
+        printf
+        strcpy
+    part1.c
+        malloc, free
+        printf with struct values
+        function prototypes
+    part2.c
+        memcpy
+        malloc, free
+        function prototypes
+    test.sh
+        valgrind testing
+        basic bash test script syntax
+
+Lab3: Parsing, Virtual Filesystem
+    practicum.c
+        format string readin (sscanf)
+        printf
+    parser.c
+        file reading (fopen)
+        perror
+        fgets
+        strncmp
+
+Lab4: Processes and Forking
+    family.c
+        fork
+        wait
+        getpid, getppid
+    search.c
+        array size
+        fork
+        waitpid, WIFEXITED, WEXITSTATUS
+    zombie.c
+        zombie process (no wait)
+
+Lab5: Mini Shell
+    mysh.c
+        shell
+        strtok to parse input args
+        fgets
+        fflush
+        strcspn
+        strcmp
+        fork, wait, WIFEXITED, WEXITSTATUS
+        execvp
+
+Lab6: Pipes and Dup2
+    warmup1.c
+        pipe (fd[0] is read end, fd[1] is write end)
+        fork
+        read
+        random num
+    warmup2.c
+        pipe
+        fork
+        execlp
+        dup2 (with STDOUT_FILENO point to write end)
+    lab6.c
+        multiple pipe
+        multiple fork
+        execlp
+        dup2 (with STDOUT_FILENO, STDIN_FILENO)
+
+
+    
