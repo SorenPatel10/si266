@@ -139,7 +139,7 @@ int main() {
     if (pipe(fd) < 0) { perror("pipe"); exit(1); }
 
     pid_t pid1 = fork();
-    if (pid1 < 0) { perror("fork"); exit(1); }
+    if (pid1 < 0)fgetc { perror("fork"); exit(1); }
 
     if (pid1 == 0) {
         // First child: ls
