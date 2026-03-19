@@ -256,6 +256,7 @@ int main(void) {
             exit(1);
         }
     }
+    printf("\nGraceful shutdown initiated. Cleaning up...\n");
 
     return 0;
 }
