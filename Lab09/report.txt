@@ -1,0 +1,89 @@
+MIDN 3/C Soren Patel (284932)
+
+
+Part 1: The Heisenbug
+1. Record your initial “Final Total Balance” from three consecutive runs. By how much did the balance “leak” each time?
+    run 1. $100044.00 - leak $44
+    run 2. $100078.00 - leak $78
+    run 3. $100012.00 - leak $12
+2. When you added a printf() inside the transfer() function, what happened to the mathematical error? Explain the relationship between I/O overhead and thread interleaving. Why is printf a “fake fix”?
+    Using printf() forces threads to pause and wait with heavy IO overhead which changes overleaving since the threads will not overlap as much.
+    The race condition can still occur, it is just by a much lower chance since threads are less likely to collide with each other.
+    Printf() is a fake fix bexause there is no mutex or actual locking, it just reduces the chance that the race condition will occur.
+
+
+Part 2: The Detective (Helgrind)
+3. Paste the specific block of Helgrind output that identifies the “Possible data race.”
+    ==2782508== Possible data race during write of size 8 at 0x10C208 by thread #3
+    ==2782508== Locks held: none
+    ==2782508==    at 0x109297: transfer (bank.c:25)
+    ==2782508==    by 0x1093A6: worker (bank.c:37)
+    ==2782508==    by 0x4854B7A: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-amd64-linux.so)
+    ==2782508==    by 0x491FAA3: start_thread (pthread_create.c:447)
+    ==2782508==    by 0x49ACA63: clone (clone.S:100)
+    ==2782508== 
+    ==2782508== ----------------------------------------------------------------
+    ==2782508== 
+    ==2782508== Possible data race during read of size 8 at 0x10C168 by thread #3
+    ==2782508== Locks held: none
+    ==2782508==    at 0x1092AF: transfer (bank.c:26)
+    ==2782508==    by 0x1093A6: worker (bank.c:37)
+    ==2782508==    by 0x4854B7A: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-amd64-linux.so)
+    ==2782508==    by 0x491FAA3: start_thread (pthread_create.c:447)
+    ==2782508==    by 0x49ACA63: clone (clone.S:100)
+    ==2782508== ----------------------------------------------------------------
+    ==2782508== 
+    ==2782508== Possible data race during write of size 8 at 0x10C168 by thread #3
+    ==2782508== Locks held: none
+    ==2782508==    at 0x1092CC: transfer (bank.c:26)
+    ==2782508==    by 0x1093A6: worker (bank.c:37)
+    ==2782508==    by 0x4854B7A: ??? (in /usr/libexec/valgrind/vgpreload_helgrind-amd64-linux.so)
+    ==2782508==    by 0x491FAA3: start_thread (pthread_create.c:447)
+    ==2782508==    by 0x49ACA63: clone (clone.S:100)
+4. List the exact line numbers in your bank.c source code that Helgrind flagged. Explain why these specific lines are not atomic (break them down into the 3-step CPU cycle).
+    Lines 24-26. These are not atomic, the cycle is as follows.
+        loads bank[from_idx].balance into a reg
+        subtract amount from that reg
+        store that reg value back in memory
+
+        same process for line 26, but with addition instead of subtraction
+
+        for line 24, it loads bank[from_idx].balance into a reg
+        compares with amount and sets flags
+        decides whether to branch or not
+
+    These are not atomic operations because values can change after reads and before writes.
+    Threads can interleave at the time these steps are carried out, and they will write the wrong values.
+
+
+Part 3: The Giant Lock
+5. Use the time command (e.g., time ./bank). Record the real time for the Coarse-Grained version.
+    real time: 0m 0.385s
+6. Explain why this version is mathematically sound but architecturally “sequential.” If you have an 8-core machine, how many cores are actually doing useful work at any given moment?
+    This is mathematically sound because the lock forces only one thread to execute this code at a time, preventing interleaving and the race condition.
+    It is architecturally sequential because only one thread can work here at a time while the others do nothing. This slows execution of the program heavily. With 8 cores, only one core is working at a time once it gets to this code, like a bottle neck.
+
+
+Part 4: The Deadly Embrace
+7. Describe the behavior of your program as you worked through implementing fine-grained locks (one per account). (This is a bit free-form. Be as specific as you can. Describe your successes, describe your challenges and failures!)
+    I did not have much difficulty in implementing the fine grained lock. These are the steps I took:
+        1. move the lock declaration from the global variable into the struct
+        2. in all mutex functions call them as a &bank[account].lock
+        3. move the lock initialization into the for loop in main, so it gets init for each account
+        4. lock both accounts, unlock both accounts on either side of the transfer() logic
+    With this lock implementation, the program works sometimes. When it works there is no leak. When it doesn't work, it just doesn't finish. This is a deadlock.
+8. Explain the Circular Wait condition. Why does Thread A holding Account 1 (waiting for 2) and Thread B holding Account 2 (waiting for 1) result in a deadlock?.
+    They are waiting on each other. A waits on B, B waits on A. Neither moves first and proceeds, causing the deadlock. This is because this mutex implementation has no enforced order or hierarchy which causes a specific thread to proceed in case of this deadlock.
+
+
+Part 5: The Master Fix
+9. Record the real time for your final, optimized version. How much of a speedup did you achieve over the “Giant Lock” version?
+    real time: 0m 0.408s
+    This is actually slower than the giant lock version. I believe this is due to either using 2 locks instead of 1, or the small amount of transfers (only 100000).
+    It may be the case that given a much larger number of transfers, the fine-grained method would be more efficient than the giant lock version.
+10. Provide a informal proof of why Total Ordering (Lower-Index First) makes a “Circular Wait” mathematically impossible.
+    Given that two different accounts cannot have the same index.
+    Each index, starting from smallest (first) to largest(last) can be represented in a linear fashion, e.g.
+    0 < 1 < 2 < 3 < 4 < ... < numAccounts
+    This method of total ordering makes a circular wait impossible, since the last and largest number cannot be smaller than the first.
+    This prevents the indices being able to be structured as a loop, so the deadlock cannot occur. 
