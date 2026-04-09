@@ -5,9 +5,25 @@
 #include "gatherer.h"
 #include <signal.h>
 #include <sys/wait.h>
+#include <pthread.h>
 
 //global variable
 volatile sig_atomic_t keep_running = 1;
+
+//shared struct to hold gathered metrics
+typedef struct{
+    cpu_data_stats cpu;
+    mem_data_stats mem;
+    load_data_stats load;
+
+    //flags to signal go and ready for each
+    int go_cpu, go_mem, go_load;
+    int ready_cpu, ready_mem, ready_load;
+
+    //mutex and condition variable
+    pthread_mutex_t lock;
+    pthread_cond_t cond;
+} system_data;
 
 //changes to 0, stops the loop
 void sigint_handler(int sig){
@@ -148,39 +164,107 @@ int calc_load(load_data_stats *load, cpu_data_stats *cpu) {
     return 0;
 }
 
-void update_loop(){
-    cpu_data_stats cpu;
-    mem_data_stats mem;
-    load_data_stats load;
+//cpu working thread
+void* cpu_thread(void* arg){
+    system_data *data = (system_data*)arg;
 
-    //loop depending on close signal
     while(keep_running){
-        //call each method, print error if ret anything other than 0
-        if (calc_cpu(&cpu) || calc_mem(&mem) || calc_load(&load, &cpu)) {
-            fprintf(stderr, "Error reading system\n");
+        //use mutex to control critical section
+        pthread_mutex_lock(&data->lock);
+        while(!data->go_cpu && keep_running){
+            //wait for signal
+            pthread_cond_wait(&data->cond,&data->lock);
         }
-        //print relevant info in correct format
-        else{
-            printf("CPU_USAGE:%.2f,"
-                   "MEM_USED:%.2f,"
-                   "MEM_AVAIL:%.2f,"
-                   "MEM_FREE:%.2f,"
-                   "MEM_CACHED:%.2f,"
-                   "SWAP_USED:%.2f,"
-                   "SWAP_FREE:%.2f,"
-                   "LOAD_1:%.2f,"
-                   "LOAD_5:%.2f,"
-                   "LOAD_15:%.2f,"
-                   "PROC_RUN:%d,"
-                   "PROC_TOTAL:%d\n",
-                cpu.cpu_usage,mem.mem_used,mem.mem_avail,mem.mem_free,
-                mem.mem_cached,mem.swap_used,mem.swap_free,
-                load.load_1,load.load_5,load.load_15,
-                cpu.proc_running,cpu.proc_total);
+
+        if(!keep_running){
+            pthread_mutex_unlock(&data->lock);
+            break;
         }
-        //flush stdout print all
-        fflush(stdout);
+
+        data->go_cpu = 0;
+        pthread_mutex_unlock(&data->lock);
+
+        //gather CPU info
+        cpu_data_stats temp;
+        if(calc_cpu(&temp)==0){
+            pthread_mutex_lock(&data->lock);
+            data->cpu = temp;
+            //change signals accordingly
+            data->ready_cpu = 1;
+            pthread_cond_broadcast(&data->cond);
+            pthread_mutex_unlock(&data->lock);
+        }
     }
+    return NULL;
+}
+
+//memory working thread
+void* mem_thread(void* arg){
+    system_data *data = (system_data*)arg;
+
+    while(keep_running){
+        //use mutex to control crit section
+        pthread_mutex_lock(&data->lock);
+        while(!data->go_mem && keep_running){
+            //wait for signal
+            pthread_cond_wait(&data->cond,&data->lock);
+        }
+
+        if(!keep_running){
+            pthread_mutex_unlock(&data->lock);
+            break;
+        }
+
+        data->go_mem = 0;
+        pthread_mutex_unlock(&data->lock);
+
+        mem_data_stats temp;
+        if(calc_mem(&temp)==0){
+            pthread_mutex_lock(&data->lock);
+            data->mem = temp;
+            //change signals accordingly
+            data->ready_mem = 1;
+            pthread_cond_broadcast(&data->cond);
+            pthread_mutex_unlock(&data->lock);
+        }
+    }
+    return NULL;
+}
+
+//load working thread
+void* load_thread(void* arg){
+    system_data *data = (system_data*)arg;
+
+    while(keep_running){
+        //mutex to control critical section
+        pthread_mutex_lock(&data->lock);
+        while(!data->go_load && keep_running){
+            //wait for signal
+            pthread_cond_wait(&data->cond,&data->lock);
+        }
+
+        if(!keep_running){
+            pthread_mutex_unlock(&data->lock);
+            break;
+        }
+
+        data->go_load = 0;
+        pthread_mutex_unlock(&data->lock);
+
+        load_data_stats temp_load;
+        cpu_data_stats temp_cpu;
+        if(calc_load(&temp_load,&temp_cpu)==0){
+            pthread_mutex_lock(&data->lock);
+            data->load = temp_load;
+            data->cpu.proc_running = temp_cpu.proc_running;
+            data->cpu.proc_total = temp_cpu.proc_total;
+            //change signals accordingly
+            data->ready_load = 1;
+            pthread_cond_broadcast(&data->cond);
+            pthread_mutex_unlock(&data->lock);
+        }
+    }
+    return NULL;
 }
 
 //main function
@@ -202,6 +286,35 @@ int main(void) {
         perror("sigaction failure");
         exit(1);
     }
+    //preventing broken pipe error message on ctrl c exit
+    signal(SIGPIPE, SIG_IGN);
+
+    //set out space for system data struct and error check
+    system_data *data = malloc(sizeof(system_data));
+    if(!data){
+        perror("malloc fail");
+        exit(1);
+    }
+
+    //initialize flags
+    //start with all go flags at 1, all ready flags at 0
+    data->go_cpu = 1;
+    data->go_mem = 1;
+    data->go_load = 1;
+    data->ready_cpu = 0;
+    data->ready_mem = 0;
+    data->ready_load = 0;
+
+    //intialize mutex and conditional var
+    pthread_mutex_init(&data->lock, NULL);
+    pthread_cond_init(&data->cond, NULL);
+
+    //make threads and call thread functions
+    //one thread for each proc file to read
+    pthread_t tcpu, tmem, tload;
+    pthread_create(&tcpu, NULL, cpu_thread, data);
+    pthread_create(&tmem, NULL, mem_thread, data);
+    pthread_create(&tload, NULL, load_thread, data);
 
     //fork and erorr check
     pid_t child_pid = fork();
@@ -245,12 +358,78 @@ int main(void) {
             exit(1);
         }
         
-        update_loop();
+        //the rest of the update loop functionality
+        while(keep_running){
+            
+            //lock control to prevent race condition
+            pthread_mutex_lock(&data->lock);
 
-        if (close(STDOUT_FILENO) == -1) {
-            perror("close failed");
-            exit(1);
+            while(!(data->ready_cpu && data->ready_mem && data->ready_load) && keep_running){
+                //wait for signal to continue
+                pthread_cond_wait(&data->cond,&data->lock);
+            }
+            if(!keep_running){
+                pthread_mutex_unlock(&data->lock);
+                break;
+            }
+            
+            //take single unified snapshot 
+            cpu_data_stats cpu = data->cpu;
+            mem_data_stats mem = data->mem;
+            load_data_stats load = data->load;
+
+            printf("CPU_USAGE:%.2f,"
+                   "MEM_USED:%.2f,"
+                   "MEM_AVAIL:%.2f,"
+                   "MEM_FREE:%.2f,"
+                   "MEM_CACHED:%.2f,"
+                   "SWAP_USED:%.2f,"
+                   "SWAP_FREE:%.2f,"
+                   "LOAD_1:%.2f,"
+                   "LOAD_5:%.2f,"
+                   "LOAD_15:%.2f,"
+                   "PROC_RUN:%d,"
+                   "PROC_TOTAL:%d\n",
+                cpu.cpu_usage,mem.mem_used,mem.mem_avail,mem.mem_free,
+                mem.mem_cached,mem.swap_used,mem.swap_free,
+                load.load_1,load.load_5,load.load_15,
+                cpu.proc_running,cpu.proc_total);
+
+            fflush(stdout);
+
+            //change flags accordingly, ready = 0 and go = 1 for next loop
+            data->ready_cpu = 0;
+            data->ready_mem = 0;
+            data->ready_load = 0;
+            data->go_cpu = 1;
+            data->go_mem = 1;
+            data->go_load = 1;
+
+            //wake up workers and unlock lock
+            pthread_cond_broadcast(&data->cond);
+            pthread_mutex_unlock(&data->lock);
+
+            sleep(1);
         }
+
+        //wake up sleeping workers to shutdown gracefuly
+        pthread_mutex_lock(&data->lock);
+        pthread_cond_broadcast(&data->cond);
+        pthread_mutex_unlock(&data->lock);
+
+        //join all threads
+        pthread_join(tcpu,NULL);
+        pthread_join(tmem,NULL);
+        pthread_join(tload,NULL);
+
+        //destroy mutex and cond var
+        pthread_mutex_destroy(&data->lock);
+        pthread_cond_destroy(&data->cond);
+
+        //free the malloced struct
+        free(data);
+
+        //collect child
         if (wait(NULL) == -1) {
             perror("wait failed");
             exit(1);
