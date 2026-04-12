@@ -372,7 +372,6 @@ int main(void) {
                 pthread_mutex_unlock(&data->lock);
                 break;
             }
-            
             //take single unified snapshot 
             cpu_data_stats cpu = data->cpu;
             mem_data_stats mem = data->mem;
