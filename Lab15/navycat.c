@@ -7,60 +7,66 @@
 #include <sys/socket.h>
 #include <netdb.h>
 
-#define BUFFER_SIZE 1024
-
+#define BUF_SIZE 1024
 
 void *listen_thread(void *arg) {
-    int sockfd = *(int *)arg;
-    char buffer[BUFFER_SIZE];
-    int bytes;
+    int socket_fd = *(int*)arg;
+    char buf[BUF_SIZE];
+    int bytesRead;
 
-    while (1) {
-        bytes = read(sockfd, buffer, BUFFER_SIZE);
+    while(1) {
+        bytesRead = read(socket_fd, buf, BUF_SIZE);
 
-        if (bytes <= 0) {
-            break;
+        if (bytesRead == 0) {
+            exit(0);
+        }
+        else if (bytesRead < 0) {
+            perror("read");
+            exit(1);
         }
 
-        write(STDOUT_FILENO, buffer, bytes);
+        write(STDOUT_FILENO, buf, bytesRead);
     }
-
     return NULL;
 }
 
 int main(int argc, char *argv[]) {
+
     if (argc != 3) {
-        fprintf(stderr, "Usage: %s <hostname> <port>\n", argv[0]);
+        fprintf(stderr, "ERROR: require arguments\n");
         exit(1);
     }
 
     char *hostname = argv[1];
     char *port = argv[2];
 
-    struct addrinfo hints, *res, *p;
+    struct addrinfo hints, *results, *p;
     int status;
 
     memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_INET;
-    hints.ai_socktype = SOCK_STREAM;
 
-    if ((status = getaddrinfo(hostname, port, &hints, &res)) != 0) {
-        fprintf(stderr, "getaddrinfo error: %s\n", gai_strerror(status));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM; 
+    status = getaddrinfo(hostname, port, &hints, &results);
+
+    if (status != 0) {
+        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(status));
         exit(1);
     }
 
-    int sockfd;
+    int socket_fd;
 
-    for (p = res; p != NULL; p = p->ai_next) {
-        sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
-        if (sockfd == -1) {
+    for(p = results; p != NULL; p = p->ai_next){
+
+        socket_fd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+        if(socket_fd < 0){
             perror("socket");
             continue;
         }
 
-        if (connect(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
+        if(connect(socket_fd, p->ai_addr, p->ai_addrlen) < 0) {
             perror("connect");
-            close(sockfd);
+            close(socket_fd);
             continue;
         }
 
@@ -68,38 +74,39 @@ int main(int argc, char *argv[]) {
     }
 
     if (p == NULL) {
-        fprintf(stderr, "Failed to connect\n");
-        freeaddrinfo(res);
-        exit(2);
-    }
-
-    freeaddrinfo(res);
-
-    printf("Connected to %s:%s\n", hostname, port);
-
-    pthread_t tid;
-    if (pthread_create(&tid, NULL, listen_thread, &sockfd) != 0) {
-        perror("pthread_create");
-        close(sockfd);
+        freeaddrinfo(results);
         exit(1);
     }
 
-    char buffer[BUFFER_SIZE];
-    int bytes;
+    freeaddrinfo(results);
 
-    while (1) {
-        bytes = read(STDIN_FILENO, buffer, BUFFER_SIZE);
+    pthread_t listener;
+    if (pthread_create(&listener, NULL, listen_thread, &socket_fd) != 0) {
+        perror("pthread_create");
+        close(socket_fd);
+        exit(1);
+    }
 
-        if (bytes <= 0) {
+    char buf[BUF_SIZE];
+    int bytesRead;
+
+    while(1) {
+        bytesRead = read(STDIN_FILENO, buf, BUF_SIZE);
+
+        if(bytesRead == 0)
+            break;
+        
+        else if (bytesRead < 0){
+            perror("read");
             break;
         }
 
-        write(sockfd, buffer, bytes);
+        if(write(socket_fd, buf, bytesRead) < 0) {
+            perror("write");
+            break;
+        }
     }
 
-    close(sockfd);
-    pthread_cancel(tid);
-    pthread_join(tid, NULL);
-
+    close(socket_fd);
     return 0;
 }
