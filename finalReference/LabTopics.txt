@@ -1,0 +1,63 @@
+🔥 SIGNALS
+- sigaction > signal
+- Handlers must be simple (set flags only)
+- Use sig_atomic_t
+- SA_RESTART prevents syscalls from failing
+
+🔥 RACE CONDITIONS
+- Occurs when threads access shared data without sync
+- Example: counter++
+
+🔥 MUTEX
+- Lock before critical section
+- Unlock after
+- Forgetting unlock = deadlock
+
+🔥 DEADLOCK CONDITIONS (ALL 4 REQUIRED)
+1. Mutual exclusion
+2. Hold and wait
+3. No preemption
+4. Circular wait
+
+🔥 DEADLOCK FIXES
+- Lock ordering (MOST COMMON)
+- Trylock
+- Timeout
+
+🔥 SEMAPHORES
+- Like mutex but with count
+- Useful for limiting resources
+
+🔥 CONDITION VARIABLES
+- Used for signaling between threads
+- ALWAYS use with mutex
+- ALWAYS use while loop
+
+🔥 THREAD BUG (LAB TRAP)
+❌ passing &i into threads
+✅ use array or malloc per thread
+
+🔥 NETWORKING FLOW
+
+CLIENT:
+getaddrinfo → socket → connect → read/write
+
+SERVER:
+socket → bind → listen → accept → thread → handle client
+
+🔥 SERVER DESIGN PATTERNS
+- Thread per client (your lab)
+- detach threads (no join needed)
+
+🔥 CRITICAL SOCKET DETAILS
+- read() = 0 → client closed connection
+- write() may be partial → loop
+- always close sockets
+
+🔥 COMMON EXAM TRAPS
+- forgetting freeaddrinfo
+- not checking return values
+- race condition in shared index (Lab 8 crack)
+- deadlock from wrong lock order
+- not using while with cond_wait
+- not handling partial writes
